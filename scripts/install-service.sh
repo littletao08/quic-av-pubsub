@@ -123,7 +123,7 @@ info "Creating systemd service: $SERVICE_NAME"
 cat > /etc/systemd/system/${SERVICE_NAME}.service <<SYSTEMD
 [Unit]
 Description=QUIC AV Pub/Sub Server
-Documentation=https://github.com/yourorg/quic-pubsub
+Documentation=https://github.com/littletao08/quic-av-pubsub
 Wants=network-online.target
 After=network.target network-online.target
 

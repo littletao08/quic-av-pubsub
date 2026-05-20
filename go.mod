@@ -1,4 +1,4 @@
-module github.com/yourorg/quic-pubsub
+module github.com/littletao08/quic-av-pubsub
 
 go 1.22
 

@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/yourorg/quic-pubsub/pkg/proto"
-	"github.com/yourorg/quic-pubsub/pkg/transport"
+	"github.com/littletao08/quic-av-pubsub/pkg/proto"
+	"github.com/littletao08/quic-av-pubsub/pkg/transport"
 )
 
 var (

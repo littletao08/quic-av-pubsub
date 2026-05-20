@@ -192,7 +192,7 @@ quic-pubsub/
 ### go.mod
 
 ```go
-module github.com/yourorg/quic-pubsub
+module github.com/littletao08/quic-av-pubsub
 
 go 1.22
 
@@ -535,7 +535,7 @@ import (
     "sync/atomic"
     "time"
 
-    "github.com/yourorg/quic-pubsub/pkg/proto"
+    "github.com/littletao08/quic-av-pubsub/pkg/proto"
 )
 
 // Subscriber 代表一个订阅某频道某类媒体的客户端写入端
@@ -721,7 +721,7 @@ import (
     "sync/atomic"
     "time"
 
-    "github.com/yourorg/quic-pubsub/pkg/proto"
+    "github.com/littletao08/quic-av-pubsub/pkg/proto"
 )
 
 // Broker 是整个系统的 Pub/Sub 核心
@@ -903,8 +903,8 @@ import (
 
     "github.com/quic-go/quic-go"
 
-    "github.com/yourorg/quic-pubsub/pkg/broker"
-    "github.com/yourorg/quic-pubsub/pkg/proto"
+    "github.com/littletao08/quic-av-pubsub/pkg/broker"
+    "github.com/littletao08/quic-av-pubsub/pkg/proto"
 )
 
 // ServerConfig 服务端配置
@@ -1272,8 +1272,8 @@ import (
 
     "github.com/quic-go/quic-go"
 
-    "github.com/yourorg/quic-pubsub/pkg/brutal"
-    "github.com/yourorg/quic-pubsub/pkg/proto"
+    "github.com/littletao08/quic-av-pubsub/pkg/brutal"
+    "github.com/littletao08/quic-av-pubsub/pkg/proto"
 )
 
 // ClientConfig 客户端配置
@@ -1701,8 +1701,8 @@ import (
     "syscall"
     "time"
 
-    "github.com/yourorg/quic-pubsub/pkg/broker"
-    "github.com/yourorg/quic-pubsub/pkg/transport"
+    "github.com/littletao08/quic-av-pubsub/pkg/broker"
+    "github.com/littletao08/quic-av-pubsub/pkg/transport"
 )
 
 func main() {
@@ -1766,8 +1766,8 @@ import (
     "os"
     "time"
 
-    "github.com/yourorg/quic-pubsub/pkg/proto"
-    "github.com/yourorg/quic-pubsub/pkg/transport"
+    "github.com/littletao08/quic-av-pubsub/pkg/proto"
+    "github.com/littletao08/quic-av-pubsub/pkg/transport"
 )
 
 func main() {
@@ -1885,8 +1885,8 @@ import (
     "sync/atomic"
     "time"
 
-    "github.com/yourorg/quic-pubsub/pkg/proto"
-    "github.com/yourorg/quic-pubsub/pkg/transport"
+    "github.com/littletao08/quic-av-pubsub/pkg/proto"
+    "github.com/littletao08/quic-av-pubsub/pkg/transport"
 )
 
 // 统计计数器

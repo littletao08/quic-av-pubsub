@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourorg/quic-pubsub/pkg/proto"
+	"github.com/littletao08/quic-av-pubsub/pkg/proto"
 )
 
 func BenchmarkPublishFanout(b *testing.B) {

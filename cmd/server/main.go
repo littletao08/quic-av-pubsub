@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/yourorg/quic-pubsub/pkg/broker"
-	"github.com/yourorg/quic-pubsub/pkg/transport"
+	"github.com/littletao08/quic-av-pubsub/pkg/broker"
+	"github.com/littletao08/quic-av-pubsub/pkg/transport"
 )
 
 func main() {

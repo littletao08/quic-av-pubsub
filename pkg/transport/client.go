@@ -13,8 +13,8 @@ import (
 
 	"github.com/quic-go/quic-go"
 
-	"github.com/yourorg/quic-pubsub/pkg/brutal"
-	"github.com/yourorg/quic-pubsub/pkg/proto"
+	"github.com/littletao08/quic-av-pubsub/pkg/brutal"
+	"github.com/littletao08/quic-av-pubsub/pkg/proto"
 )
 
 type ClientConfig struct {

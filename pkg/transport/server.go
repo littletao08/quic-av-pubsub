@@ -11,8 +11,8 @@ import (
 
 	"github.com/quic-go/quic-go"
 
-	"github.com/yourorg/quic-pubsub/pkg/broker"
-	"github.com/yourorg/quic-pubsub/pkg/proto"
+	"github.com/littletao08/quic-av-pubsub/pkg/broker"
+	"github.com/littletao08/quic-av-pubsub/pkg/proto"
 )
 
 type ServerConfig struct {
