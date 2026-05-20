@@ -1,6 +1,26 @@
 # 开发者使用指南
 
-## 快速开始
+## 公共测试服务器
+
+无需自己部署服务端，直接用以下地址测试：
+
+| 地址 | 端口 |
+|------|------|
+| `arm2.pvpv.bid` | `4430` |
+
+```bash
+# 订阅者测试（加入频道）
+./bin/subscriber -server arm2.pvpv.bid:4430 -ch room:101
+
+# 发布者测试（发送音视频到频道）
+./bin/publisher -server arm2.pvpv.bid:4430 -ch room:101 -bw 15
+```
+
+> 测试服务器为 arm64 架构，位于公网。使用自签证书，客户端需设置 `Insecure: true`。
+
+---
+
+## 本地快速开始
 
 ```bash
 # 生成证书（首次）
@@ -40,9 +60,9 @@ import (
 ### 2. 作为发布者
 
 ```go
-// 创建发布者
+// 创建发布者（本地测试用 127.0.0.1，远程测试用 arm2.pvpv.bid）
 pub := transport.NewPublisher(transport.ClientConfig{
-    ServerAddr:    "127.0.0.1:4430",
+    ServerAddr:    "127.0.0.1:4430",    // 或 "arm2.pvpv.bid:4430"
     Insecure:      true,           // 开发阶段跳过证书验证
     TargetMbps:    10.0,           // Brutal 拥塞控制目标带宽
     HeartbeatSec:  5,              // 心跳间隔（秒）
@@ -95,9 +115,9 @@ onFrame := func(track proto.TrackType, f *proto.Frame) {
     }
 }
 
-// 创建订阅者
+// 创建订阅者（本地或远程测试）
 sub := transport.NewSubscriber(transport.ClientConfig{
-    ServerAddr: "127.0.0.1:4430",
+    ServerAddr: "127.0.0.1:4430",    // 或 "arm2.pvpv.bid:4430"
     Insecure:   true,
 }, onFrame, logger)
 
