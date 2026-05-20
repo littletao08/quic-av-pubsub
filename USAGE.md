@@ -375,6 +375,216 @@ TrackAll     // "all"    所有类型
 
 ---
 
+## Android (Kotlin) 客户端
+
+Android 推荐使用 **Kotlin** 开发。本系统的协议层（23 字节帧头 + JSON 信令）可以在任何 QUIC 库上实现。
+
+### QUIC 传输层选型
+
+| 方案 | 说明 |
+|------|------|
+| **netty-quic** | 纯 Java QUIC 实现，兼容 Android |
+| **Cronet** | Google QUIC 栈，Android 内置但仅支持 HTTP/3 |
+| **gomobile** | 将 Go 客户端编译为 `.aar` 直接调用 |
+
+### 帧编解码（Kotlin）
+
+```kotlin
+import java.nio.ByteBuffer
+
+// ── 帧类型 ──
+const val FRAME_HEADER_SIZE = 23
+const val AUDIO     = 0x01
+const val VIDEO     = 0x02
+const val MESSAGE   = 0x03
+const val SIG_PUB   = 0x10
+const val SIG_SUB   = 0x11
+const val SIG_ACK   = 0x13
+const val SIG_ERR   = 0x14
+
+data class Frame(
+    val type: Int,
+    val channelId: Int = 0,
+    val seq: Int = 0,
+    val timestamp: Long = System.currentTimeMillis() * 1000,
+    val flags: Int = 0,
+    val payload: ByteArray = ByteArray(0)
+) {
+    // 字段偏移
+    // [0]    Type       (1 byte)
+    // [1-2]  ChannelID  (2 bytes)
+    // [3-6]  Seq        (4 bytes)
+    // [7-14] Timestamp  (8 bytes)
+    // [15]   Flags      (1 byte)
+    // [16-18] Reserved  (3 bytes)
+    // [19-22] PayloadLen (4 bytes)
+    // [23+]  Payload    (variable)
+
+    fun encode(): ByteArray {
+        val buf = ByteBuffer.allocate(FRAME_HEADER_SIZE + payload.size)
+        buf.put(type.toByte())
+        buf.putShort(channelId.toShort())
+        buf.putInt(seq)
+        buf.putLong(timestamp)
+        buf.put(flags.toByte())
+        buf.put(ByteArray(3))  // reserved
+        buf.putInt(payload.size)
+        buf.put(payload)
+        return buf.array()
+    }
+
+    companion object {
+        fun decode(data: ByteArray): Frame {
+            val buf = ByteBuffer.wrap(data)
+            val typ = buf.get().toInt() and 0xFF
+            val chId = buf.getShort().toInt() and 0xFFFF
+            val seq = buf.getInt()
+            val ts = buf.getLong()
+            val flags = buf.get().toInt() and 0xFF
+            buf.position(buf.position() + 3)  // skip reserved
+            val payLen = buf.getInt()
+            val payload = ByteArray(payLen)
+            buf.get(payload)
+            return Frame(typ, chId, seq, ts, flags, payload)
+        }
+
+        fun makeSig(typ: Int, body: String): Frame {
+            val payload = body.toByteArray()
+            return Frame(type = typ, timestamp = nowUs(), payload = payload)
+        }
+    }
+}
+
+fun nowUs() = System.currentTimeMillis() * 1000
+```
+
+### 发布者示例
+
+```kotlin
+import kotlinx.coroutines.*
+import org.json.JSONObject
+
+// 使用 netty-quic 或其他 QUIC 库建立连接
+// 以下展示 QUIC 连接建立后的协议交互
+
+suspend fun publishExample(quicStream: QuicStream) {
+    val writer = quicStream.outputStream()
+    val reader = quicStream.inputStream()
+
+    // 1. 发送 SIG_PUB
+    val sigPub = JSONObject().apply {
+        put("channel", "room:101")
+        put("tracks", listOf("audio", "video", "message"))
+    }
+    val pubFrame = Frame.makeSig(SIG_PUB, sigPub.toString())
+    writer.write(pubFrame.encode())
+    writer.flush()
+
+    // 2. 读取 SIG_ACK
+    val header = ByteArray(FRAME_HEADER_SIZE)
+    reader.readFully(header)
+    val ack = Frame.decode(header + ByteArray(0)) // 实际需完整读帧
+    if (ack.type == SIG_ERR) return
+
+    // 3. 发送媒体帧
+    val chId = ack.channelId
+    var seq = 0
+
+    // 音频帧（Opus @ 20ms）
+    val opusData = ByteArray(80)
+    while (true) {
+        val frame = Frame(
+            type = AUDIO,
+            channelId = chId,
+            seq = seq++,
+            timestamp = nowUs(),
+            payload = opusData
+        )
+        writer.write(frame.encode())
+        writer.flush()
+        delay(20)
+    }
+}
+```
+
+### 订阅者示例
+
+```kotlin
+import kotlinx.coroutines.*
+import org.json.JSONObject
+
+suspend fun subscribeExample(
+    quicStream: QuicStream,
+    pushStreams: Flow<QuicStream>,  // 服务端推送的 UniStream
+    onFrame: (track: String, frame: Frame) -> Unit
+) {
+    // 1. 发送 SIG_SUB
+    val sigSub = JSONObject().apply {
+        put("channel", "room:101")
+        put("tracks", listOf("all"))
+    }
+    val subFrame = Frame.makeSig(SIG_SUB, sigSub.toString())
+    quicStream.outputStream().write(subFrame.encode())
+    quicStream.outputStream().flush()
+
+    // 2. 读取 SIG_ACK
+    val ackData = readFrame(quicStream.inputStream())
+    val ack = Frame.decode(ackData)
+    if (ack.type == SIG_ERR) return
+
+    println("subscribed to channel, id=${ack.channelId}")
+
+    // 3. 接收服务端推送的 UniStream
+    pushStreams.collect { stream ->
+        launch {
+            // 第一帧是 track 声明（SIG_ACK）
+            val announceData = readFrame(stream.inputStream())
+            val announce = Frame.decode(announceData)
+            val meta = JSONObject(String(announce.payload))
+            val track = meta.getString("track")
+            println("push stream opened: track=$track")
+
+            // 后续为媒体帧
+            while (true) {
+                val frameData = readFrame(stream.inputStream())
+                val frame = Frame.decode(frameData)
+                onFrame(track, frame)
+            }
+        }
+    }
+}
+
+// 从 InputStream 读取完整一帧
+suspend fun readFrame(input: java.io.InputStream): ByteArray {
+    val header = ByteArray(FRAME_HEADER_SIZE)
+    input.readFully(header)
+    val payLen = ByteBuffer.wrap(header, 19, 4).getInt()
+    val payload = ByteArray(payLen)
+    input.readFully(payload)
+    return header + payload
+}
+```
+
+### Gradle 依赖
+
+```kotlin
+// build.gradle.kts (Module)
+dependencies {
+    // QUIC 传输层（任选其一）
+    implementation("io.netty.incubator:netty-incubator-codec-quic:0.0.62.Final")
+
+    // 协程
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+
+    // JSON
+    implementation("org.json:json:20240303")
+}
+```
+
+> **提示**：本项目 Go 客户端可通过 `gomobile bind` 编译为 Android `.aar` 直接调用，无需重写协议层。
+
+---
+
 ## Python 客户端
 
 也可用 Python 直接发布/订阅，依赖 `aioquic` 库。
@@ -416,12 +626,11 @@ from aioquic.asyncio import connect
 from aioquic.quic.configuration import QuicConfiguration
 
 async def publish_example():
-    config = QuicConfiguration(is_client=True)
+    config = QuicConfiguration(is_client=True, alpn_protocols=["quic-pubsub/1"])
     config.verify_mode = False
 
     async with connect("arm2.pvpv.bid", 4430, configuration=config) as conn:
-        stream = conn.create_stream()
-        reader, writer = stream
+        reader, writer = await conn.create_stream()
         fr = FrameReader(reader)
 
         # 发送发布请求
@@ -434,23 +643,25 @@ async def publish_example():
         if ack.type == SIG_ACK:
             ch_id = ack.channel_id
             # 发送视频帧
-            f = Frame(VIDEO, ch_id, seq=1, timestamp=now_us(), flags=1, payload=b"\\x00" * 15000)
+            f = Frame(VIDEO, ch_id, seq=1, timestamp=now_us(), flags=1, payload=b"\x00" * 15000)
             writer.write(f.encode())
             await writer.drain()
 
 async def subscribe_example():
-    config = QuicConfiguration(is_client=True)
-    config.verify_mode = False
-
-    from python.quic_client import SubscriberProtocol
+    from python.quic_client import PubSubProtocol
 
     def on_frame(track, frame):
         print(f"received {track} frame seq={frame.seq} size={len(frame.payload)}")
 
+    config = QuicConfiguration(is_client=True, alpn_protocols=["quic-pubsub/1"])
+    config.verify_mode = False
+
     async with connect("arm2.pvpv.bid", 4430, configuration=config,
-                       create_protocol=lambda: SubscriberProtocol(on_frame)) as conn:
-        stream = conn.create_stream()
-        _, writer = stream
+                       create_protocol=PubSubProtocol) as protocol:
+        await protocol.handshake_event.wait()
+        protocol.set_push_callback(on_frame)
+
+        reader, writer = await protocol.create_stream()
         sig = Frame.make_sig(SIG_SUB, {"channel": "room:101", "tracks": ["all"]})
         writer.write(sig.encode())
         await writer.drain()
