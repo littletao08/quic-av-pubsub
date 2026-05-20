@@ -372,3 +372,87 @@ TrackVideo   // "video"  视频
 TrackMessage // "message" 消息
 TrackAll     // "all"    所有类型
 ```
+
+---
+
+## Python 客户端
+
+也可用 Python 直接发布/订阅，依赖 `aioquic` 库。
+
+### 安装
+
+```bash
+pip install aioquic
+```
+
+### 使用
+
+```bash
+# 订阅频道（接收音视频）
+python python/quic_client.py subscribe --server arm2.pvpv.bid:4430 --ch room:101
+
+# 发布音视频到频道（在另一个终端）
+python python/quic_client.py publish --server arm2.pvpv.bid:4430 --ch room:101
+```
+
+### 参数列表
+
+| 模式 | 参数 | 默认值 | 说明 |
+|------|------|--------|------|
+| `publish` | `--server` | `arm2.pvpv.bid:4430` | 服务端地址 |
+| | `--ch` | `room:101` | 频道名称 |
+| | `--bw` | `10.0` | 目标带宽 Mbps |
+| `subscribe` | `--server` | `arm2.pvpv.bid:4430` | 服务端地址 |
+| | `--ch` | `room:101` | 频道名称 |
+| | `--stats` | — | 每 5 秒打印统计 |
+
+### Python API 示例
+
+```python
+from python.quic_client import Frame, FrameReader, now_us, AUDIO, VIDEO, MESSAGE, SIG_PUB, SIG_SUB, SIG_ACK
+import asyncio
+import json
+from aioquic.asyncio import connect
+from aioquic.quic.configuration import QuicConfiguration
+
+async def publish_example():
+    config = QuicConfiguration(is_client=True)
+    config.verify_mode = False
+
+    async with connect("arm2.pvpv.bid", 4430, configuration=config) as conn:
+        stream = conn.create_stream()
+        reader, writer = stream
+        fr = FrameReader(reader)
+
+        # 发送发布请求
+        sig = Frame.make_sig(SIG_PUB, {"channel": "room:101", "tracks": ["audio", "video"]})
+        writer.write(sig.encode())
+        await writer.drain()
+
+        # 读取 ACK
+        ack = await fr.read_frame()
+        if ack.type == SIG_ACK:
+            ch_id = ack.channel_id
+            # 发送视频帧
+            f = Frame(VIDEO, ch_id, seq=1, timestamp=now_us(), flags=1, payload=b"\\x00" * 15000)
+            writer.write(f.encode())
+            await writer.drain()
+
+async def subscribe_example():
+    config = QuicConfiguration(is_client=True)
+    config.verify_mode = False
+
+    from python.quic_client import SubscriberProtocol
+
+    def on_frame(track, frame):
+        print(f"received {track} frame seq={frame.seq} size={len(frame.payload)}")
+
+    async with connect("arm2.pvpv.bid", 4430, configuration=config,
+                       create_protocol=lambda: SubscriberProtocol(on_frame)) as conn:
+        stream = conn.create_stream()
+        _, writer = stream
+        sig = Frame.make_sig(SIG_SUB, {"channel": "room:101", "tracks": ["all"]})
+        writer.write(sig.encode())
+        await writer.drain()
+        await asyncio.sleep(3600)  # 持续接收
+```
